@@ -3956,7 +3956,7 @@
         "inherits": ["FAMILY_STM32"],
         "core": "Cortex-M3",
         "extra_labels_add": ["STM32F1", "STM32F100RB"],
-        "supported_toolchains": ["GCC_ARM"],
+        "supported_toolchains": ["ARM", "uARM", "GCC_ARM"],
         "device_has_add": [],
         "device_has_remove": ["LPTICKER"],
         "device_name": "STM32F100RB"

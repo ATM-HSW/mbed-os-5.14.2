@@ -34,9 +34,9 @@
 
 #define Stack_Size MBED_BOOT_STACK_SIZE
 
-LR_IROM1 0x08000000 0x20000  {    ; load region size_region (128K)
+LR_IROM1 0x08000000 0x10000  {    ; load region size_region (128K)
 
-  ER_IROM1 0x08000000 0x20000  {  ; load address = execution address
+  ER_IROM1 0x08000000 0x10000  {  ; load address = execution address
    *.o (RESET, +First)
    *(InRoot$$Sections)
    .ANY (+RO)
