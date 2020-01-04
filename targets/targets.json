@@ -8454,6 +8454,7 @@
 		],
         "features": ["BLE"],
         "release_versions": ["2", "5"],
+        "device_name": "STM32WB55RGVx",
         "bootloader_supported": true
     },
     "VBLUNO52": {
