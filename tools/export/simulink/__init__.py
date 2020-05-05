@@ -1,6 +1,6 @@
 """
 mbed SDK
-Copyright (c) 2011-2016 ARM Limited
+Copyright (c) 2011-2019 ARM Limited
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,17 +14,38 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 """
+from __future__ import print_function, absolute_import
+from builtins import str
+
 from os.path import splitext, basename, relpath, join, abspath, dirname,\
-    exists
+    exists, normpath
 from os import remove
 import sys
 from subprocess import check_output, CalledProcessError, Popen, PIPE
 import shutil
 from jinja2.exceptions import TemplateNotFound
-from tools.export.exporters import Exporter
+from tools.resources import FileType
+from tools.export.exporters import Exporter, apply_supported_whitelist
 from tools.utils import NotSupportedException
 from tools.targets import TARGET_MAP
 
+SHELL_ESCAPE_TABLE = {
+    "(": "\(",
+    ")": "\)",
+}
+
+def shell_escape(string):
+    return "".join(SHELL_ESCAPE_TABLE.get(char, char) for char in string)
+
+def _fix_include_asm_flag(flag, ctx):
+    if flag.startswith('-I'):
+        new_path = normpath(join(ctx['vpath'][0], flag[2:]))
+        return "-I{}".format(new_path)
+    elif flag.startswith('--preinclude='):
+        new_path = normpath(join(ctx['vpath'][0], flag[13:]))
+        return "--preinclude={}".format(new_path)
+    else:
+        return flag
 
 class Simulink(Exporter):
     """Generic Makefile template that mimics the behavior of the python build
@@ -35,11 +56,23 @@ class Simulink(Exporter):
 
     MBED_CONFIG_HEADER_SUPPORTED = True
 
+    PREPROCESS_ASM = False
+
     POST_BINARY_WHITELIST = set([
         "MCU_NRF51Code.binary_hook",
         "TEENSY3_1Code.binary_hook",
-        "LPCTargetCode.lpc_patch"
+        "LPCTargetCode.lpc_patch",
+        "LPC4088Code.binary_hook",
+        "PSOC6Code.complete"
     ])
+
+    OUTPUT = 'target_tools.mk'
+
+    @classmethod
+    def is_target_supported(cls, target_name):
+        target = TARGET_MAP[target_name]
+        return apply_supported_whitelist(
+            cls.TOOLCHAIN, cls.POST_BINARY_WHITELIST, target)
 
     def generate(self):
         """Generate the makefile
@@ -57,7 +90,7 @@ class Simulink(Exporter):
                           self.resources.cpp_sources]
 
         libraries = [self.prepare_lib(basename(lib)) for lib
-                     in self.resources.libraries]
+                     in self.libraries]
         sys_libs = [self.prepare_sys_lib(lib) for lib
                     in self.toolchain.sys_libs]
 
@@ -91,6 +124,9 @@ class Simulink(Exporter):
             'link_script_ext': self.toolchain.LINKER_EXT,
             'link_script_option': self.LINK_SCRIPT_OPTION,
             'user_library_flag': self.USER_LIBRARY_FLAG,
+            'needs_asm_preproc': self.PREPROCESS_ASM,
+            'shell_escape': shell_escape,
+            'response_option': self.RESPONSE_OPTION,
         }
 
         if hasattr(self.toolchain, "preproc"):
@@ -129,6 +165,26 @@ class Simulink(Exporter):
         else:
             raise NotSupportedException("This make tool is in development")
 
+    def format_flags(self):
+        """Format toolchain flags for Makefile"""
+        flags = {}
+        for k, v in self.flags.items():
+            if k in ['c_flags', 'cxx_flags']:
+                flags[k] = list(map(lambda x: x.replace('"', '\\"'), v))
+            else:
+                flags[k] = v
+
+        return flags
+
+    @staticmethod
+    def clean(_):
+        remove("Makefile")
+        # legacy .build directory cleaned if exists
+        if exists('.build'):
+            shutil.rmtree('.build')
+        if exists('BUILD'):
+            shutil.rmtree('BUILD')
+
     @staticmethod
     def build(project_name, log_name="build_log.txt", cleanup=True):
         """ Build Make project """
@@ -150,7 +206,7 @@ class Simulink(Exporter):
         else:
             out_string += "FAILURE"
 
-        print out_string
+        print(out_string)
 
         if log_name:
             # Write the output to the log file
@@ -176,18 +232,18 @@ class Simulink(Exporter):
 
 class SimulinkGccArm(Simulink):
     """SIMULINK/GCC ARM specific makefile target"""
-    TARGETS = [target for target, obj in TARGET_MAP.iteritems()
-               if "GCC_ARM" in obj.supported_toolchains]
     NAME = 'SIMULINK-GCC-ARM'
     TEMPLATE = 'simulink-gcc-arm'
     TOOLCHAIN = "GCC_ARM"
     LINK_SCRIPT_OPTION = "-T"
     USER_LIBRARY_FLAG = "-L"
-    OUTPUT = 'target_tools.mk'
+    RESPONSE_OPTION = "@"
 
     @staticmethod
     def prepare_lib(libname):
-        return "-l:" + libname
+        if "lib" == libname[:3]:
+            libname = libname[3:-2]
+        return "-l" + libname
 
     @staticmethod
     def prepare_sys_lib(libname):

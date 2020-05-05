@@ -348,24 +348,3 @@ class IAR(Makefile):
         if "lib" == libname[:3]:
             libname = libname[3:]
         return "-l" + splitext(libname)[0]
-
-class SimulinkGccArm(Makefile):
-    """SIMULINK/GCC ARM specific makefile target"""
-    TARGETS = [target for target, obj in TARGET_MAP.iteritems()
-               if "GCC_ARM" in obj.supported_toolchains]
-    NAME = 'SIMULINK-GCC-ARM'
-    TEMPLATE = 'simulink-gcc-arm'
-    TOOLCHAIN = "GCC_ARM"
-    LINK_SCRIPT_OPTION = "-T"
-    USER_LIBRARY_FLAG = "-L"
-    OUTPUT = 'target_tools.mk'
-
-    @staticmethod
-    def prepare_lib(libname):
-        if "lib" == libname[:3]:
-            libname = libname[3:-2]
-        return "-l" + libname
-
-    @staticmethod
-    def prepare_sys_lib(libname):
-        return "-l" + libname
